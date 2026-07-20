@@ -1,3 +1,0 @@
-Database,Known_genes_in_universe,Predicted_top100,Overlap,Expected_overlap,Fold_enrichment,P_value,Significant,Overlapping_genes
-COSMIC,70,100,25,0.78,32.0,2.713204711986007e-32,True,"AR, ATP1A1, BIRC6, BRCA1, CIC, CLTC, CUL3, EP300, ERBB2, FUBP1, HSP90AB1, LMNA, NTRK1, NUP98, PARK2, PPP2R1A, PTEN, RAD21, RHOH, RPN1, SMC1A, SND1, SUZ12, VHL, YWHAE"
-DisGeNET,29,100,5,0.32,15.45,1.5035601122062122e-05,True,"AR, BRCA1, ERBB2, MAPT, PTEN"

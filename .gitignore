@@ -12,6 +12,7 @@ venv/
 duan/
 .venv/
 env/
+dice/
 ENV/
 .virtualenv/
 
@@ -71,3 +72,13 @@ Thumbs.db
 /data/raw/biogrid/
 
 build/
+
+# Ignore all processed data and intermediate network files
+data/processed/**/*
+# Prevent ignoring the .gitkeep file so the folder structure is kept
+!data/processed/.gitkeep
+
+# Ignore all final analysis results, plots, and outputs
+data/results/**/*
+# Prevent ignoring the .gitkeep file so the folder structure is kept
+!data/results/.gitkeep
