@@ -96,7 +96,7 @@ def main():
     parser.add_argument('--tumor', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--top-n', type=int, default=500)
-    parser.add_argument('--disable-noise', action='store_true', help='Skip Phase 5 12% hub removal')
+    parser.add_argument('--disable-noise', action='store_true', help='Skip Phase 5 12 hub removal')
     
     args = parser.parse_args()
     
