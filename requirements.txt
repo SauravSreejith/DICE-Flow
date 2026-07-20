@@ -6,6 +6,10 @@ numpy>=1.21.0
 pandas>=1.3.0
 scipy>=1.7.0
 
+# Deep Learning (EA-GAT)
+torch>=2.0.0
+torch-geometric>=2.4.0
+
 # Bioinformatics
 biopython>=1.79
 
