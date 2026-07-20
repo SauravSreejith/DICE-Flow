@@ -62,6 +62,9 @@ const NetworkGraph = ({
           source: edge.source, 
           target: edge.target, 
           weight: edge.weight || 0.5,
+          // GAT attention coefficient (α_ij) from EA-GAT backend when available
+          attention: edge.attention,
+          directed: edge.directed === true || edge.directed === 1 || edge.directed === 'true',
           status: edge.status
         }
       }))
@@ -158,9 +161,10 @@ const NetworkGraph = ({
         {
           selector: 'edge',
           style: {
+            // Prefer GAT attention score (α_ij) over raw physical weight when present
             'width': (ele) => {
-              const weight = ele.data('weight') || 0.5;
-              return Math.max(1, weight * 3);
+              const attentionScore = ele.data('attention') || ele.data('weight') || 0.5;
+              return Math.max(1, attentionScore * 5); // Thicker lines = High GAT Attention
             },
             'line-color': (ele) => {
               if (mode === 'ego' && ele.data('status')) {
@@ -169,10 +173,13 @@ const NetworkGraph = ({
                 if (status === 'gained') return 'rgba(255, 45, 141, 0.5)';
                 if (status === 'maintained') return 'rgba(155, 89, 214, 0.5)';
               }
-              return edgeColor;
+              // Make high-attention edges glow brighter
+              const alpha = ele.data('attention') ? 0.2 + (ele.data('attention') * 0.8) : 0.4;
+              return tissue === 'normal' ? `rgba(0, 240, 255, ${alpha})` : `rgba(255, 45, 141, ${alpha})`;
             },
             'target-arrow-color': edgeColor,
-            'target-arrow-shape': 'none',
+            // Show arrows for directed edges (parsed from KEGG / merged network)
+            'target-arrow-shape': (ele) => ele.data('directed') ? 'triangle' : 'none',
             'curve-style': 'bezier',
             'opacity': 0.6,
             'transition-property': 'line-color, width, opacity',
@@ -183,7 +190,10 @@ const NetworkGraph = ({
           selector: 'edge.highlighted',
           style: {
             'line-color': '#FFD166',
-            'width': (ele) => Math.max(2, (ele.data('weight') || 0.5) * 4),
+            'width': (ele) => {
+              const attentionScore = ele.data('attention') || ele.data('weight') || 0.5;
+              return Math.max(2, attentionScore * 5);
+            },
             'opacity': 1
           }
         },
@@ -452,18 +462,18 @@ const NetworkGraph = ({
       {/* Legend - different for ego mode */}
       <div className="absolute bottom-4 left-4 glass-card-sm px-4 py-3">
         {mode === 'ego' ? (
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#00F0FF]" />
-              <span className="text-[#A6AEB8]">Lost</span>
-            </div>
+          <div className="flex items-center gap-4 text-xs flex-wrap">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-[#FF2D8D]" />
-              <span className="text-[#A6AEB8]">Gained</span>
+              <span className="text-[#A6AEB8]">Gained (Δw &gt; τ)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-[#00F0FF]" />
+              <span className="text-[#A6AEB8]">Lost (Δw &lt; −τ)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-[#9B59D6]" />
-              <span className="text-[#A6AEB8]">Maintained</span>
+              <span className="text-[#A6AEB8]">Stable (|Δw| ≤ τ)</span>
             </div>
           </div>
         ) : (

@@ -3,12 +3,14 @@ import { motion } from 'framer-motion';
 import HubRewiring from './HubRewiring';
 import PathTracer from './PathTracer';
 import VirtualKnockout from './VirtualKnockout';
+import LeaderboardSection from './LeaderboardSection';
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState('hub');
 
   const tabs = [
     { id: 'hub', label: 'Hub Rewiring', icon: 'network' },
+    { id: 'ranks', label: 'EA-GAT Ranks', icon: 'bolt' },
     { id: 'path', label: 'Path Tracer', icon: 'route' },
     { id: 'knockout', label: 'Virtual Knockout', icon: 'chart' }
   ];
@@ -32,6 +34,12 @@ const MainApp = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
+      ),
+      bolt: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
       )
     };
     return icons[iconName];
@@ -52,7 +60,7 @@ const MainApp = () => {
             </div>
             <div>
               <h1 className="font-display text-xl font-bold text-[#F2F4F8]">DiCE-Duan Analyzer</h1>
-              <p className="text-xs text-[#A6AEB8]">Differential Network Analysis</p>
+              <p className="text-xs text-[#A6AEB8]">EA-GAT · Embedding Drift · Network Rewiring</p>
             </div>
           </div>
 
@@ -82,6 +90,18 @@ const MainApp = () => {
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
         {activeTab === 'hub' && <HubRewiring />}
+        {activeTab === 'ranks' && (
+          <div className="h-full overflow-y-auto">
+            <LeaderboardSection
+              onGeneHighlight={(gene) => {
+                if (gene) {
+                  // Jump to hub rewiring with this gene pre-selected via session flag
+                  sessionStorage.setItem('dice_focus_gene', gene);
+                }
+              }}
+            />
+          </div>
+        )}
         {activeTab === 'path' && <PathTracer />}
         {activeTab === 'knockout' && <VirtualKnockout />}
       </div>

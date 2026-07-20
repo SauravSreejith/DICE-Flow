@@ -7,6 +7,9 @@ export const topRewiredGenes = [
     rank: 1,
     gene: "ZRANB1",
     ensembleScore: 0.94,
+    egatProb: 0.94,
+    embeddingDrift: 0.8,
+    sksDisruption: 0.68,
     deltaBetweenness: 0.21,
     deltaEigenvector: 0.11,
     normalBetweenness: 0.03,
@@ -20,6 +23,9 @@ export const topRewiredGenes = [
     rank: 2,
     gene: "TP53",
     ensembleScore: 0.91,
+    egatProb: 0.91,
+    embeddingDrift: 0.77,
+    sksDisruption: 0.66,
     deltaBetweenness: 0.18,
     deltaEigenvector: 0.09,
     normalBetweenness: 0.12,
@@ -33,6 +39,9 @@ export const topRewiredGenes = [
     rank: 3,
     gene: "EGFR",
     ensembleScore: 0.88,
+    egatProb: 0.88,
+    embeddingDrift: 0.74,
+    sksDisruption: 0.64,
     deltaBetweenness: 0.16,
     deltaEigenvector: 0.08,
     normalBetweenness: 0.08,
@@ -46,6 +55,9 @@ export const topRewiredGenes = [
     rank: 4,
     gene: "MYC",
     ensembleScore: 0.85,
+    egatProb: 0.85,
+    embeddingDrift: 0.71,
+    sksDisruption: 0.62,
     deltaBetweenness: 0.15,
     deltaEigenvector: 0.07,
     normalBetweenness: 0.15,
@@ -59,6 +71,9 @@ export const topRewiredGenes = [
     rank: 5,
     gene: "KRAS",
     ensembleScore: 0.82,
+    egatProb: 0.82,
+    embeddingDrift: 0.69,
+    sksDisruption: 0.59,
     deltaBetweenness: 0.14,
     deltaEigenvector: 0.06,
     normalBetweenness: 0.09,
@@ -72,6 +87,9 @@ export const topRewiredGenes = [
     rank: 6,
     gene: "PTEN",
     ensembleScore: 0.79,
+    egatProb: 0.79,
+    embeddingDrift: 0.66,
+    sksDisruption: 0.57,
     deltaBetweenness: 0.13,
     deltaEigenvector: 0.06,
     normalBetweenness: 0.11,
@@ -85,6 +103,9 @@ export const topRewiredGenes = [
     rank: 7,
     gene: "BRCA1",
     ensembleScore: 0.76,
+    egatProb: 0.76,
+    embeddingDrift: 0.63,
+    sksDisruption: 0.55,
     deltaBetweenness: 0.12,
     deltaEigenvector: 0.05,
     normalBetweenness: 0.07,
@@ -98,6 +119,9 @@ export const topRewiredGenes = [
     rank: 8,
     gene: "PIK3CA",
     ensembleScore: 0.74,
+    egatProb: 0.74,
+    embeddingDrift: 0.62,
+    sksDisruption: 0.53,
     deltaBetweenness: 0.11,
     deltaEigenvector: 0.05,
     normalBetweenness: 0.06,
@@ -111,6 +135,9 @@ export const topRewiredGenes = [
     rank: 9,
     gene: "BRAF",
     ensembleScore: 0.71,
+    egatProb: 0.71,
+    embeddingDrift: 0.59,
+    sksDisruption: 0.51,
     deltaBetweenness: 0.10,
     deltaEigenvector: 0.04,
     normalBetweenness: 0.05,
@@ -124,6 +151,9 @@ export const topRewiredGenes = [
     rank: 10,
     gene: "CDH1",
     ensembleScore: 0.68,
+    egatProb: 0.68,
+    embeddingDrift: 0.56,
+    sksDisruption: 0.49,
     deltaBetweenness: 0.09,
     deltaEigenvector: 0.04,
     normalBetweenness: 0.08,
@@ -196,87 +226,87 @@ export const networkNodes = [
 // Network edges (interactions)
 export const networkEdges = [
   // TP53 hub connections
-  { source: "TP53", target: "MDM2", weight: 0.9 },
-  { source: "TP53", target: "CDKN2A", weight: 0.85 },
-  { source: "TP53", target: "BAX", weight: 0.8 },
-  { source: "TP53", target: "ATM", weight: 0.75 },
-  { source: "TP53", target: "CHEK2", weight: 0.7 },
+  { source: "TP53", target: "MDM2", weight: 0.9, attention: 0.88, directed: true },
+  { source: "TP53", target: "CDKN2A", weight: 0.85, attention: 0.83, directed: true },
+  { source: "TP53", target: "BAX", weight: 0.8, attention: 0.78, directed: true },
+  { source: "TP53", target: "ATM", weight: 0.75, attention: 0.73, directed: true },
+  { source: "TP53", target: "CHEK2", weight: 0.7, attention: 0.68, directed: true },
   
   // EGFR signaling
-  { source: "EGFR", target: "PIK3CA", weight: 0.88 },
-  { source: "EGFR", target: "KRAS", weight: 0.82 },
-  { source: "EGFR", target: "STAT3", weight: 0.78 },
-  { source: "EGFR", target: "SRC", weight: 0.75 },
-  { source: "EGFR", target: "ERBB2", weight: 0.85 },
+  { source: "EGFR", target: "PIK3CA", weight: 0.88, attention: 0.86, directed: true },
+  { source: "EGFR", target: "KRAS", weight: 0.82, attention: 0.8, directed: true },
+  { source: "EGFR", target: "STAT3", weight: 0.78, attention: 0.76, directed: true },
+  { source: "EGFR", target: "SRC", weight: 0.75, attention: 0.73, directed: true },
+  { source: "EGFR", target: "ERBB2", weight: 0.85, attention: 0.83, directed: true },
   
   // PI3K/AKT pathway
-  { source: "PIK3CA", target: "AKT1", weight: 0.92 },
-  { source: "PIK3CA", target: "PTEN", weight: 0.88 },
-  { source: "AKT1", target: "MTOR", weight: 0.86 },
-  { source: "AKT1", target: "FOXO3", weight: 0.72 },
-  { source: "PTEN", target: "MTOR", weight: 0.68 },
+  { source: "PIK3CA", target: "AKT1", weight: 0.92, attention: 0.89, directed: true },
+  { source: "PIK3CA", target: "PTEN", weight: 0.88, attention: 0.86, directed: true },
+  { source: "AKT1", target: "MTOR", weight: 0.86, attention: 0.84, directed: true },
+  { source: "AKT1", target: "FOXO3", weight: 0.72, attention: 0.7, directed: true },
+  { source: "PTEN", target: "MTOR", weight: 0.68, attention: 0.67, directed: true },
   
   // KRAS/MAPK pathway
-  { source: "KRAS", target: "BRAF", weight: 0.9 },
-  { source: "BRAF", target: "MAPK1", weight: 0.85 },
-  { source: "KRAS", target: "PIK3CA", weight: 0.76 },
+  { source: "KRAS", target: "BRAF", weight: 0.9, attention: 0.88, directed: true },
+  { source: "BRAF", target: "MAPK1", weight: 0.85, attention: 0.83, directed: true },
+  { source: "KRAS", target: "PIK3CA", weight: 0.76, attention: 0.74, directed: true },
   
   // MYC network
-  { source: "MYC", target: "CDK4", weight: 0.82 },
-  { source: "MYC", target: "E2F1", weight: 0.78 },
-  { source: "MYC", target: "BCL2", weight: 0.7 },
+  { source: "MYC", target: "CDK4", weight: 0.82, attention: 0.8, directed: true },
+  { source: "MYC", target: "E2F1", weight: 0.78, attention: 0.76, directed: true },
+  { source: "MYC", target: "BCL2", weight: 0.7, attention: 0.68, directed: true },
   
   // Cell cycle
-  { source: "CDK4", target: "RB1", weight: 0.88 },
-  { source: "RB1", target: "E2F1", weight: 0.85 },
-  { source: "CDKN2A", target: "CDK4", weight: 0.9 },
+  { source: "CDK4", target: "RB1", weight: 0.88, attention: 0.86, directed: true },
+  { source: "RB1", target: "E2F1", weight: 0.85, attention: 0.83, directed: true },
+  { source: "CDKN2A", target: "CDK4", weight: 0.9, attention: 0.88, directed: true },
   
   // DNA repair
-  { source: "BRCA1", target: "BRCA2", weight: 0.87 },
-  { source: "BRCA1", target: "RAD51", weight: 0.82 },
-  { source: "BRCA1", target: "ATM", weight: 0.78 },
-  { source: "BRCA2", target: "RAD51", weight: 0.85 },
+  { source: "BRCA1", target: "BRCA2", weight: 0.87, attention: 0.85, directed: true },
+  { source: "BRCA1", target: "RAD51", weight: 0.82, attention: 0.8, directed: true },
+  { source: "BRCA1", target: "ATM", weight: 0.78, attention: 0.76, directed: true },
+  { source: "BRCA2", target: "RAD51", weight: 0.85, attention: 0.83, directed: true },
   
   // TGF-beta
-  { source: "TGFBR1", target: "SMAD4", weight: 0.8 },
-  { source: "SMAD4", target: "CTNNB1", weight: 0.68 },
+  { source: "TGFBR1", target: "SMAD4", weight: 0.8, attention: 0.78, directed: true },
+  { source: "SMAD4", target: "CTNNB1", weight: 0.68, attention: 0.67, directed: true },
   
   // Wnt signaling
-  { source: "WNT1", target: "CTNNB1", weight: 0.82 },
-  { source: "CTNNB1", target: "APC", weight: 0.88 },
-  { source: "APC", target: "CDH1", weight: 0.72 },
+  { source: "WNT1", target: "CTNNB1", weight: 0.82, attention: 0.8, directed: true },
+  { source: "CTNNB1", target: "APC", weight: 0.88, attention: 0.86, directed: true },
+  { source: "APC", target: "CDH1", weight: 0.72, attention: 0.7, directed: true },
   
   // Notch
-  { source: "NOTCH1", target: "MYC", weight: 0.7 },
+  { source: "NOTCH1", target: "MYC", weight: 0.7, attention: 0.68, directed: true },
   
   // Hypoxia
-  { source: "HIF1A", target: "VEGFA", weight: 0.86 },
-  { source: "HIF1A", target: "MTOR", weight: 0.74 },
+  { source: "HIF1A", target: "VEGFA", weight: 0.86, attention: 0.84, directed: true },
+  { source: "HIF1A", target: "MTOR", weight: 0.74, attention: 0.72, directed: true },
   
   // NF-kB
-  { source: "NFKB1", target: "RELA", weight: 0.88 },
-  { source: "NFKB1", target: "STAT3", weight: 0.72 },
+  { source: "NFKB1", target: "RELA", weight: 0.88, attention: 0.86, directed: true },
+  { source: "NFKB1", target: "STAT3", weight: 0.72, attention: 0.7, directed: true },
   
   // Apoptosis
-  { source: "BCL2", target: "CASP9", weight: 0.78 },
-  { source: "PARP1", target: "CASP9", weight: 0.7 },
+  { source: "BCL2", target: "CASP9", weight: 0.78, attention: 0.76, directed: true },
+  { source: "PARP1", target: "CASP9", weight: 0.7, attention: 0.68, directed: true },
   
   // MMR
-  { source: "MLH1", target: "MSH2", weight: 0.9 },
-  { source: "MLH1", target: "MSH6", weight: 0.85 },
-  { source: "MSH2", target: "PMS2", weight: 0.82 },
+  { source: "MLH1", target: "MSH2", weight: 0.9, attention: 0.88, directed: true },
+  { source: "MLH1", target: "MSH6", weight: 0.85, attention: 0.83, directed: true },
+  { source: "MSH2", target: "PMS2", weight: 0.82, attention: 0.8, directed: true },
   
   // Additional connections for density
-  { source: "ZRANB1", target: "TP53", weight: 0.65 },
-  { source: "ZRANB1", target: "MYC", weight: 0.62 },
-  { source: "ZRANB1", target: "EGFR", weight: 0.58 },
-  { source: "JAK2", target: "STAT3", weight: 0.84 },
-  { source: "FGFR1", target: "PIK3CA", weight: 0.76 },
-  { source: "STK11", target: "MTOR", weight: 0.8 },
-  { source: "EPCAM", target: "CDH1", weight: 0.74 },
-  { source: "RBL2", target: "E2F1", weight: 0.68 },
-  { source: "ATR", target: "ATM", weight: 0.82 },
-  { source: "ATR", target: "CHEK2", weight: 0.76 }
+  { source: "ZRANB1", target: "TP53", weight: 0.65, attention: 0.64, directed: true },
+  { source: "ZRANB1", target: "MYC", weight: 0.62, attention: 0.61, directed: true },
+  { source: "ZRANB1", target: "EGFR", weight: 0.58, attention: 0.57, directed: true },
+  { source: "JAK2", target: "STAT3", weight: 0.84, attention: 0.82, directed: true },
+  { source: "FGFR1", target: "PIK3CA", weight: 0.76, attention: 0.74, directed: true },
+  { source: "STK11", target: "MTOR", weight: 0.8, attention: 0.78, directed: true },
+  { source: "EPCAM", target: "CDH1", weight: 0.74, attention: 0.72, directed: true },
+  { source: "RBL2", target: "E2F1", weight: 0.68, attention: 0.67, directed: true },
+  { source: "ATR", target: "ATM", weight: 0.82, attention: 0.8, directed: true },
+  { source: "ATR", target: "CHEK2", weight: 0.76, attention: 0.74, directed: true }
 ];
 
 // Stats for the dashboard
@@ -337,25 +367,25 @@ export const methodologySteps = [
   {
     id: 1,
     title: "Build Networks",
-    description: "Construct Normal and Tumor co-expression networks from RNA-seq data using correlation thresholds and significance testing.",
+    description: "Construct Normal and Tumor co-expression networks from BioGRID/KEGG with Pearson-distance edge weights.",
     icon: "network"
   },
   {
     id: 2,
-    title: "Compute Centrality",
-    description: "Calculate Betweenness, Eigenvector, and PageRank centrality for each gene in both network conditions.",
+    title: "EA-GAT Embedding",
+    description: "Edge-augmented GATv2 learns anisotropic attention over heterophilic biological graphs.",
     icon: "calculator"
   },
   {
     id: 3,
-    title: "Delta & Ensemble",
-    description: "Compute centrality deltas and aggregate into ensemble scores with outlier rejection for robust ranking.",
+    title: "Embedding Drift (Δh)",
+    description: "Contrastive self-supervised loss ranks genes by normal→tumor latent displacement.",
     icon: "git-merge"
   },
   {
     id: 4,
     title: "Rank & Export",
-    description: "Generate ranked gene lists, extract rewired subnetworks, and export visual reports for downstream analysis.",
+    description: "Generate ranked gene lists with EA-GAT probability, Δh, and SKS disruption scores.",
     icon: "download"
   }
 ];
