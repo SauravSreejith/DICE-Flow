@@ -42,7 +42,7 @@ PROCESSED_DIR="$DATA_DIR/processed"
 RESULTS_DIR="$DATA_DIR/results"
 
 KEGG_DIR="$RAW_DIR/kegg"
-BIOGRID_FILE="$RAW_DIR/biogrid/BIOGRID-ALL-5.0.253.tab2.txt"
+BIOGRID_FILE="$RAW_DIR/biogrid/BIOGRID-ALL-5.0.259.tab2.txt"
 EXPR_DIR="$RAW_DIR/expression"
 
 # Python and C++ binaries
