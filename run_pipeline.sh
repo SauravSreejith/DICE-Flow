@@ -97,28 +97,6 @@ if [ "$GLOBAL_MODE" -eq 1 ]; then
     log_warn "Running in GLOBAL mode. Bypassing DEA and IG filters to compute the entire human interactome."
 fi
 
-# ============================================================================
-# Step 0: Build C++ Engine
-# ============================================================================
-
-if [ "$SKIP_BUILD" = false ]; then
-    log_info "Building C++ Duan engine..."
-    
-    mkdir -p build
-    cd build
-    cmake -DCMAKE_BUILD_TYPE=Release ..
-    make -j$(nproc)
-    cd "$PROJECT_ROOT"
-    
-    if [ ! -f "$CPP_BIN" ]; then
-        log_error "Failed to build C++ engine"
-        exit 1
-    fi
-    
-    log_info "C++ engine built successfully"
-else
-    log_warn "Skipping C++ build"
-fi
 
 # ============================================================================
 # Step 0.5: Generate dummy data if in test mode
@@ -233,113 +211,34 @@ if [ ! -f "$MERGED_NETWORK" ]; then
 fi
 
 # ============================================================================
-# Phase 4: Network Weighting with Expression Data
+# Phase 4 & 5: DiCE-Flow Aim 1 (Multi-Scale Diffusion Descriptor)
 # ============================================================================
 
-log_info "=== Phase 4: Network Weighting ==="
+log_info "=== Phase 4: Aim 1 - Multi-Scale Diffusion & Calibration ==="
 
-# Step 4.1: Weight network with normal expression
-log_info "Weighting network with normal expression..."
-NORMAL_WEIGHTED="$PROCESSED_DIR/weighted/network_normal.txt"
-
-$PYTHON src/python/weight_network.py \
-    --network "$MERGED_NETWORK" \
-    --expression "$NORMAL_EXPR" \
-    --output "$NORMAL_WEIGHTED" \
-    --scale 1000
-
-# Step 2.2: Weight network with tumor expression
-log_info "Weighting network with tumor expression..."
-TUMOR_WEIGHTED="$PROCESSED_DIR/weighted/network_tumor.txt"
-
-$PYTHON src/python/weight_network.py \
-    --network "$MERGED_NETWORK" \
-    --expression "$TUMOR_EXPR" \
-    --output "$TUMOR_WEIGHTED" \
-    --scale 1000
-
-# ============================================================================
-# Phase 5: Centrality Computation (C++ Engine)
-# ============================================================================
-
-log_info "=== Phase 5: Computing Network Centralities ==="
-
-NORMAL_INT="${NORMAL_WEIGHTED/.txt/_int.txt}"
-TUMOR_INT="${TUMOR_WEIGHTED/.txt/_int.txt}"
-
-if [ ! -f "$CPP_BIN" ]; then
-    log_error "C++ engine not found. Please build first."
-    exit 1
-fi
-
-log_info "Running Duan 2025 algorithm on normal and tumor networks..."
-
-$CPP_BIN \
-    "$NORMAL_INT" \
-    "$TUMOR_INT" \
-    "$RESULTS_DIR"
-
-if [ $? -ne 0 ]; then
-    log_error "C++ analysis failed"
-    exit 1
-fi
-
-# ============================================================================
-# Phase 6: Differential Centrality Analysis
-# ============================================================================
-
-log_info "=== Phase 6: Differential Centrality Analysis ==="
-
-NORMAL_CENTRALITY="$RESULTS_DIR/centrality_normal.txt"
-TUMOR_CENTRALITY="$RESULTS_DIR/centrality_tumor.txt"
-
-if [ ! -f "$NORMAL_CENTRALITY" ] || [ ! -f "$TUMOR_CENTRALITY" ]; then
-    log_error "Centrality files not found"
-    exit 1
-fi
-
-log_info "Computing differential centrality..."
-DICE_GENES="$RESULTS_DIR/dice_genes.txt"
+# We bypass the C++ Single-Scale Engine and use the new mathematically 
+# rigorous Aim 1 Python pipeline with Chebyshev Trace Estimation and FDR control.
 
 if [ "$GLOBAL_MODE" -eq 1 ]; then
-    log_info "GLOBAL MODE: Disabling Phase 5 noise filter to retain hyper-hubs like EP300..."
-    $PYTHON src/python/differential_centrality.py \
-        --normal "$NORMAL_CENTRALITY" \
-        --tumor "$TUMOR_CENTRALITY" \
-        --output "$DICE_GENES" \
-        --top-n 500 \
-        --disable-noise
+    NETWORK_INPUT="$PROCESSED_DIR/networks/merged_network.txt"
 else
-    $PYTHON src/python/differential_centrality.py \
-        --normal "$NORMAL_CENTRALITY" \
-        --tumor "$TUMOR_CENTRALITY" \
-        --output "$DICE_GENES" \
-        --top-n 500
+    NETWORK_INPUT="$MERGED_NETWORK"
 fi
 
-if [ ! -f "$DICE_GENES" ]; then
-    log_error "Differential centrality analysis failed"
+# Run the Aim 1 Python Orchestrator
+$PYTHON src/python/aim1_pipeline.py \
+    --norm-expr "$NORMAL_EXPR" \
+    --tum-expr "$TUMOR_EXPR" \
+    --network "$NETWORK_INPUT" \
+    --n-perms 50
+
+if [ $? -ne 0 ]; then
+    log_error "Aim 1 Diffusion Pipeline failed"
     exit 1
 fi
 
-# ============================================================================
-# Phase 7: Virtual Knockout Analysis (Optional)
-# ============================================================================
-
-log_info "=== Phase 7: Virtual Knockout Analysis ==="
-
-# Create gene list from top DiCE genes
-TOP_GENES="$RESULTS_DIR/genes_for_knockout.txt"
-tail -n +2 "$RESULTS_DIR/dice_genes_top500.txt" | cut -f1 | head -50 > "$TOP_GENES"
-
-log_info "Running virtual knockout analysis on top 50 DiCE genes..."
-
-$CPP_BIN \
-    "$NORMAL_INT" \
-    "$TUMOR_INT" \
-    "$RESULTS_DIR" \
-    "knockout" \
-    "$TOP_GENES"
+# Note: Virtual Knockout (Phase 7) is temporarily disabled as it relied on the 
+# old C++ engine. Aim 2 will handle edge-level ablation later.
 
 # ============================================================================
 # Phase 8: Extended Validation (Fitness Genes + Dual Dataset)
