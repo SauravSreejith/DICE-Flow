@@ -148,7 +148,7 @@ graph TD
     %% Phase 4: Validation
     subgraph Phase 4: Validation & Benchmarking
         L --> M[validation_pipeline.py]:::script
-        M --> N[Precision@K & Volcano Plots .png]:::output
+        M --> N["Precision@K & Volcano Plots .png"]:::output
         M --> O[Benchmarking Stats .csv]:::output
     end
 ```
