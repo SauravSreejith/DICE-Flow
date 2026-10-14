@@ -65,8 +65,10 @@ def find_project_root() -> Path:
 
 
 def load_dice_genes(root):
-    """Load ranked DiCE genes."""
-    path = root / 'data' / 'results' / 'dice_genes_top500.txt'
+    """Load full ranked DiCE genes table (17,466 LCC universe)."""
+    full_path = root / 'data' / 'results' / 'dice_genes.txt'
+    top_path = root / 'data' / 'results' / 'dice_genes_top500.txt'
+    path = full_path if full_path.exists() else top_path
     df = pd.read_csv(path, sep='\t')
     log.info(f"Loaded {len(df)} DiCE genes from {path.name}")
     return df
@@ -115,11 +117,11 @@ def load_known_genes(root):
 
 
 def load_network_edges(root):
-    """Load merged network edges."""
+    """Load merged network edges properly handling the 4-column TSV header."""
     path = root / 'data' / 'processed' / 'networks' / 'merged_network.txt'
     if not path.exists():
         return None
-    edges = pd.read_csv(path, sep='\t', header=None, names=['gene1', 'gene2'])
+    edges = pd.read_csv(path, sep='\t', usecols=[0, 1], header=0, names=['gene1', 'gene2'])
     log.info(f"Loaded {len(edges)} network edges")
     return edges
 
