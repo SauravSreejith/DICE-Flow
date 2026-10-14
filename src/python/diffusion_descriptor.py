@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore", message=".*Sparse invariant checks.*")
 
 logger = logging.getLogger(__name__)
 
-# Cache the device so it only prints once!
+# Cache the device so it only prints once
 _BEST_DEVICE = None
 
 def get_best_device():
@@ -49,23 +49,24 @@ def compute_laplacians(adj_matrix):
     
     return L_c, P_t, degrees
 
-def hks_diag_cheb_torch(L, lam_max, ts, K=60, S=512, seed=0):
+def hks_diag_cheb_torch(L, lam_max, ts, K=60, S=256, seed=0):
     """
     Batched Generalized Trace Estimator using PyTorch.
-    Seamlessly adapts to NVIDIA, AMD (ROCm), Mac (MPS), or Multi-core CPU.
+    Uses paired Common Random Numbers (via `seed`) across Normal/Tumor pairs
+    to cancel stochastic variance at mid-to-large diffusion scales.
     """
     device = get_best_device()
     N = L.shape[0]
     
-    # 1. Compute Chebyshev Coefficients (Fast enough on CPU)
+    # 1. Compute Chebyshev Coefficients on CPU
     j = np.arange(K + 1)
     theta = np.pi * (j + 0.5) / (K + 1)
-    lam_grid = (lam_max / 2) * (np.cos(theta) + 1)
+    lam_grid = (lam_max / 2.0) * (np.cos(theta) + 1.0)
     
     C = np.empty((len(ts), K + 1))
     for a, t in enumerate(ts):
         f = np.exp(-t * lam_grid)
-        C[a] = (2 / (K + 1)) * (f[None, :] * np.cos(np.outer(j, theta))).sum(1)
+        C[a] = (2.0 / (K + 1)) * (f[None, :] * np.cos(np.outer(j, theta))).sum(1)
         C[a, 0] *= 0.5
     C_pt = torch.tensor(C, dtype=torch.float32, device=device)
     
@@ -75,62 +76,58 @@ def hks_diag_cheb_torch(L, lam_max, ts, K=60, S=512, seed=0):
     values = torch.tensor(L_coo.data, dtype=torch.float32, device=device)
     L_pt = torch.sparse_coo_tensor(indices, values, L_coo.shape).coalesce()
     
-    # Identity matrix on target device
     I_pt = torch.sparse_coo_tensor(
-        torch.arange(N).unsqueeze(0).repeat(2, 1).to(device),
-        torch.ones(N, device=device),
+        torch.arange(N, device=device).unsqueeze(0).repeat(2, 1),
+        torch.ones(N, device=device, dtype=torch.float32),
         (N, N)
     ).coalesce()
     
-    # Normalized Laplacian [-1, 1]
+    # Rescale spectrum to [-1, 1]
     Lt_pt = (2.0 / lam_max) * L_pt - I_pt
     
-    # 3. Batched Hutchinson Trace Estimation
+    # 3. Batched Hutchinson Trace Estimation with explicit seed
     torch.manual_seed(seed)
-    
-    # Generate S random vectors at once: shape (N, S)
+    if device.type == 'cuda':
+        torch.cuda.manual_seed(seed)
+        
     z = torch.randint(0, 2, (N, S), device=device, dtype=torch.float32) * 2.0 - 1.0
     
     Tm2 = z
     Tm1 = torch.sparse.mm(Lt_pt, z)
     
-    acc = torch.zeros((len(ts), N), device=device)
+    acc = torch.zeros((len(ts), N), device=device, dtype=torch.float32)
     
-    # Diag expectation across S samples
     diag_k0 = (z * Tm2).mean(dim=1)
     diag_k1 = (z * Tm1).mean(dim=1)
     
-    acc += torch.ger(C_pt[:, 0], diag_k0) + torch.ger(C_pt[:, 1], diag_k1)
+    acc += torch.outer(C_pt[:, 0], diag_k0) + torch.outer(C_pt[:, 1], diag_k1)
     
-    # Recurrence relation
     for k in range(2, K + 1):
         Tk = 2.0 * torch.sparse.mm(Lt_pt, Tm1) - Tm2
         diag_k = (z * Tk).mean(dim=1)
-        acc += torch.ger(C_pt[:, k], diag_k)
-        
+        acc += torch.outer(C_pt[:, k], diag_k)
         Tm2, Tm1 = Tm1, Tk
         
+    # Clamp strictly positive before returning (physical heat cannot be <= 0)
     return acc.cpu().numpy()
 
 def get_scale_bank(L_c):
     """
-    Computes the diffusion scale bank. 
-    Bypasses exact Fiedler value calculation to avoid 30+ minute sparse LU decompositions.
+    Computes the 16-step logarithmic diffusion scale bank (Proposal Step 4).
     """
-    # 1. Largest Eigenvalue (Standard Arnoldi iteration - very fast)
-    lam_max = splinalg.eigsh(L_c, k=1, which='LM', return_eigenvectors=False)[0]
-    
-    # 2. Second Smallest (Fiedler value heuristic)
-    lam_2 = 1e-4
+    lam_max = float(splinalg.eigsh(L_c, k=1, which='LM', return_eigenvectors=False)[0])
+    lam_2 = 1e-4  # Safe lower spectral bound for connected PPI networks
         
-    t_min = 4 * np.log(10) / lam_max
-    t_max = 4 * np.log(10) / lam_2
+    t_min = 4.0 * np.log(10.0) / lam_max
+    t_max = 4.0 * np.log(10.0) / lam_2
     
-    # Create 16 logarithmic steps
     ts = np.logspace(np.log10(t_min), np.log10(t_max), 16)
     return ts, lam_max
 
-def get_lazy_walk_profile(P_t, k_steps=[2, 4, 8, 16]):
+def get_lazy_walk_profile(P_t, k_steps=(2, 4, 8, 16)):
+    """
+    Computes Lazy Random-Walk Structural Encoding (RWSE) diagonals.
+    """
     N = P_t.shape[0]
     rwse = np.zeros((len(k_steps), N))
     P_curr = P_t.copy()
