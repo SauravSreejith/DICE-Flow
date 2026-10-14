@@ -14,7 +14,7 @@ class BioGRIDParser:
         
     def parse(self, organism_id=9606):
         """
-        Parse BioGRID TAB2 file.
+        Parse BioGRID TAB3 file.
         Default organism_id 9606 is Homo sapiens.
         """
         if not self.input_path.exists():
@@ -23,9 +23,9 @@ class BioGRIDParser:
 
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Parsing BioGRID from {self.input_path}")
+        logger.info(f"Parsing BioGRID (TAB3) from {self.input_path}")
         
-        # BioGRID Tab2 Columns (0-based index):
+        # BioGRID Tab3 Core Columns (0-based index):
         # 0: BioGRID Interaction ID
         # 1: Entrez Gene Interactor A
         # 2: Entrez Gene Interactor B
@@ -36,7 +36,6 @@ class BioGRIDParser:
         # 15: Organism ID Interactor A
         # 16: Organism ID Interactor B
         
-        # We will load by index to avoid header name issues
         use_cols = [0, 1, 2, 7, 8, 11, 12, 15, 16]
         col_names = [
             'interaction_id', 'entrez_a', 'entrez_b', 
@@ -49,11 +48,7 @@ class BioGRIDParser:
         chunk_size = 100000
         
         try:
-            # Skip the header row (row 0) and use our own names
-            # header=0 tells pandas row 0 is header, but we replace it with `names`
-            # However, BioGRID usually has a header line. We'll rely on skipping it if it exists.
-            
-            # First, detect if header exists and starts with #
+            # Check for the header (Tab3 starts with #BioGRID Interaction ID)
             with open(self.input_path, 'r') as f:
                 first_line = f.readline()
                 header_row = 0 if first_line.startswith('#') else None
@@ -70,20 +65,12 @@ class BioGRIDParser:
                     chunk['org_a'] = pd.to_numeric(chunk['org_a'], errors='coerce').fillna(0).astype(int)
                     chunk['org_b'] = pd.to_numeric(chunk['org_b'], errors='coerce').fillna(0).astype(int)
                     
-                    # Filter for specific organism (both interactors must belong to it)
+                    # Filter for specific organism (both interactors must belong to Homo sapiens)
                     mask = (chunk['org_a'] == organism_id) & (chunk['org_b'] == organism_id)
-                    
-                    # Filter for physical interactions only (optional, but recommended for signaling)
-                    # Common physical types: Affinity Capture-Western, Two-hybrid, Co-crystal structure, etc.
-                    # We usually keep everything or filter 'genetic'. Let's keep all for now 
-                    # or strictly physical if desired.
-                    # mask &= (chunk['system_type'] == 'physical') 
                     
                     filtered = chunk[mask].copy()
                     
                     if not filtered.empty:
-                        # Select relevant columns for output
-                        # We want: Source, Target, Type, Weight (default 1.0)
                         out_df = pd.DataFrame({
                             'source': filtered['symbol_a'],
                             'target': filtered['symbol_b'],
@@ -116,8 +103,8 @@ class BioGRIDParser:
             sys.exit(1)
 
 def main():
-    parser = argparse.ArgumentParser(description='Parse BioGRID TAB2 file')
-    parser.add_argument('--input', required=True, help='Path to raw BioGRID tab2 file')
+    parser = argparse.ArgumentParser(description='Parse BioGRID TAB3 file')
+    parser.add_argument('--input', required=True, help='Path to raw BioGRID tab3 file')
     parser.add_argument('--output', required=True, help='Path to output processed file')
     parser.add_argument('--organism', type=int, default=9606, help='NCBI Taxonomy ID (default: 9606 for human)')
     

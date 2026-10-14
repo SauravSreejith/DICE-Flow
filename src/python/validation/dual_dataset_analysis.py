@@ -64,12 +64,14 @@ PALETTE = {
 # ═══════════════════════════════════════════════════════════════════════════
 
 def find_project_root() -> Path:
-    """Find DICE project root."""
-    script_dir = Path(__file__).resolve().parent
-    for d in [script_dir, script_dir.parent]:
-        if (d / 'data' / 'results').exists():
-            return d
-    return script_dir
+    """Find the DICE project root."""
+    # Walk up the directory tree until we find the 'data' folder
+    current_dir = Path(__file__).resolve().parent
+    while current_dir.name != '' and current_dir.parent != current_dir:
+        if (current_dir / 'data' / 'results').exists() or (current_dir / 'data' / 'raw').exists():
+            return current_dir
+        current_dir = current_dir.parent
+    return Path(__file__).resolve().parent
 
 
 def load_dice_results(filepath: Path, label: str = "Dataset") -> pd.DataFrame:

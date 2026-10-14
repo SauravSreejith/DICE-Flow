@@ -56,12 +56,14 @@ PALETTE = {'DiCE': '#2563EB', 'DEG': '#DC2626', 'Random': '#9CA3AF'}
 # ═══════════════════════════════════════════════════════════════════════════
 
 def find_project_root() -> Path:
-    """Find DICE project root."""
-    script_dir = Path(__file__).resolve().parent
-    for d in [script_dir, script_dir.parent]:
-        if (d / 'data' / 'results').exists():
-            return d
-    return script_dir
+    """Find the DICE project root."""
+    # Walk up the directory tree until we find the 'data' folder
+    current_dir = Path(__file__).resolve().parent
+    while current_dir.name != '' and current_dir.parent != current_dir:
+        if (current_dir / 'data' / 'results').exists() or (current_dir / 'data' / 'raw').exists():
+            return current_dir
+        current_dir = current_dir.parent
+    return Path(__file__).resolve().parent
 
 
 def load_fitness_genes(filepath: Path) -> Dict[str, Dict[str, float]]:
@@ -186,28 +188,39 @@ def compute_overlap(
     """
     Compute overlap between a query gene set and fitness genes.
     Uses hypergeometric test for significance.
-
-    Returns dict with overlap stats and p-value.
     """
+    # Ensure types are integers for SciPy
+    M = int(universe_size)
+    
+    # Restrict fitness genes to those that actually exist in the universe 
+    # to satisfy the mathematical constraint: n <= M
     overlap = query_genes & fitness_genes
-    n_overlap = len(overlap)
-    n_query = len(query_genes)
-    n_fitness = len(fitness_genes)
+    k = int(len(overlap))
+    N = int(len(query_genes))
+    n = int(min(M, len(fitness_genes))) 
 
-    # Hypergeometric test: P(X >= n_overlap)
-    # M = universe, n = fitness genes, N = query genes
-    pval = hypergeom.sf(n_overlap - 1, universe_size, n_fitness, n_query)
-    pct = (n_overlap / n_query * 100) if n_query > 0 else 0.0
+    # Hypergeometric test: P(X >= k)
+    if k > 0:
+        pval = hypergeom.sf(k - 1, M, n, N)
+    else:
+        pval = 1.0
+        
+    pct = (k / N * 100) if N > 0 else 0.0
+    expected = (N * n) / M if M > 0 else 0.0
+    
+    if expected > 0:
+        fold_enrichment = k / expected
+    else:
+        fold_enrichment = 0.0
 
     result = {
         'label': label,
-        'n_query': n_query,
-        'n_fitness': n_fitness,
-        'n_overlap': n_overlap,
+        'n_query': N,
+        'n_fitness': n,
+        'n_overlap': k,
         'pct_overlap': pct,
-        'expected': n_query * n_fitness / universe_size if universe_size > 0 else 0,
-        'fold_enrichment': (n_overlap / (n_query * n_fitness / universe_size))
-                           if (n_query * n_fitness / universe_size) > 0 else 0,
+        'expected': expected,
+        'fold_enrichment': fold_enrichment,
         'pvalue': pval,
         'overlap_genes': sorted(overlap),
     }

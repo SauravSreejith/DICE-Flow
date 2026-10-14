@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # ============================================================================
-# DiCE-Duan Complete Pipeline
-# Integrates KEGG/BioGRID networks with gene expression for differential
-# centrality analysis using the Duan 2025 SSSP algorithm
+# DiCE-Flow Complete Pipeline (Aim 1)
+# Multi-Scale Diffusion Descriptor, Chebyshev Trace Estimation, and FDR Control
 # ============================================================================
 
 set -e  # Exit on error
@@ -14,147 +13,80 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Log functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 # ============================================================================
-# Configuration
+# Configuration & Setup
 # ============================================================================
 
-# Project root
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
-# Directories
 DATA_DIR="$PROJECT_ROOT/data"
 RAW_DIR="$DATA_DIR/raw"
 PROCESSED_DIR="$DATA_DIR/processed"
 RESULTS_DIR="$DATA_DIR/results"
 
 KEGG_DIR="$RAW_DIR/kegg"
-BIOGRID_FILE="$RAW_DIR/biogrid/BIOGRID-ALL-5.0.259.tab2.txt"
-EXPR_DIR="$RAW_DIR/expression"
-
-# Python and C++ binaries
-PYTHON="python3"
-CPP_BIN="$PROJECT_ROOT/build/dice_analyzer"
-
-# Create directories
-mkdir -p "$PROCESSED_DIR/networks" "$PROCESSED_DIR/weighted" "$RESULTS_DIR"
+BIOGRID_FILE="$RAW_DIR/biogrid/BIOGRID-ALL-5.0.262.tab3.txt"
+NORMAL_EXPR="$RAW_DIR/expression/expression_normal.txt"
+TUMOR_EXPR="$RAW_DIR/expression/expression_tumor.txt"
 
 # ============================================================================
-# Parse command line arguments
+# Pre-Flight Check: Verify all datasets exist
 # ============================================================================
+log_info "Running Pre-Flight Dataset Checks..."
 
-MODE="full"  # full, test, or custom
-USE_DUMMY=false
-SKIP_BUILD=false
-GLOBAL_MODE=0
+MISSING_DATA=0
 
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --test)
-            MODE="test"
-            USE_DUMMY=true
-            shift
-            ;;
-        --global)
-            GLOBAL_MODE=1
-            shift
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        --help)
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "Options:"
-            echo "  --test          Run with dummy data"
-            echo "  --global        Run on full interactome (skip filtering)"
-            echo "  --skip-build    Skip C++ compilation"
-            echo "  --help          Show this help message"
-            exit 0
-            ;;
-        *)
-            log_error "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-
-if [ "$GLOBAL_MODE" -eq 1 ]; then
-    log_warn "Running in GLOBAL mode. Bypassing DEA and IG filters to compute the entire human interactome."
+# 1. Check KEGG Directory (must exist and not be empty)
+if [ ! -d "$KEGG_DIR" ] || [ -z "$(ls -A "$KEGG_DIR" 2>/dev/null | grep -i "\.xml$" || true)" ]; then
+    log_error "KEGG data missing: Directory $KEGG_DIR contains no XML files."
+    MISSING_DATA=1
 fi
 
-# ============================================================================
-# Step 0: Build C++ Engine
-# ============================================================================
-
-if [ "$SKIP_BUILD" = false ]; then
-    log_info "Building C++ Duan engine..."
-    
-    mkdir -p build
-    cd build
-    cmake -DCMAKE_BUILD_TYPE=Release ..
-    make -j$(nproc)
-    cd "$PROJECT_ROOT"
-    
-    if [ ! -f "$CPP_BIN" ]; then
-        log_error "Failed to build C++ engine"
-        exit 1
-    fi
-    
-    log_info "C++ engine built successfully"
-else
-    log_warn "Skipping C++ build"
+# 2. Check BioGRID File
+if [ ! -f "$BIOGRID_FILE" ]; then
+    log_error "BioGRID data missing: File $BIOGRID_FILE does not exist."
+    MISSING_DATA=1
 fi
 
-# ============================================================================
-# Step 0.5: Generate dummy data if in test mode
-# ============================================================================
-
-if [ "$USE_DUMMY" = true ]; then
-    log_info "Generating dummy data for testing..."
-    
-    $PYTHON src/python/generate_dummy_data.py \
-        --output-dir "$DATA_DIR/dummy" \
-        --n-genes 100 \
-        --n-samples 30
-    
-    # Update paths to use dummy data
-    KEGG_DIR="$DATA_DIR/dummy/kegg"
-    BIOGRID_FILE="$DATA_DIR/dummy/biogrid/BIOGRID-dummy.tab2.txt"
-    EXPR_DIR="$DATA_DIR/dummy/expression"
+# 3. Check Expression Files
+if [ ! -f "$NORMAL_EXPR" ]; then
+    log_error "Normal Expression data missing: $NORMAL_EXPR"
+    MISSING_DATA=1
+fi
+if [ ! -f "$TUMOR_EXPR" ]; then
+    log_error "Tumor Expression data missing: $TUMOR_EXPR"
+    MISSING_DATA=1
 fi
 
-# ============================================================================
-# Phase 1 & 2: Differential Expression and Information Gain Filtering
-# ============================================================================
-
-log_info "=== Phase 1: Differential Expression Analysis (DEA) ==="
-
-# Check for expression files upfront since we need them to filter
-NORMAL_EXPR="$EXPR_DIR/expression_normal.txt"
-TUMOR_EXPR="$EXPR_DIR/expression_tumor.txt"
-
-if [ ! -f "$NORMAL_EXPR" ] || [ ! -f "$TUMOR_EXPR" ]; then
-    log_error "Expression files not found in $EXPR_DIR"
+if [ $MISSING_DATA -eq 1 ]; then
+    echo -e "${RED}Pre-flight checks failed. Please download the required datasets and fix the paths.${NC}"
     exit 1
+else
+    log_info "All datasets verified! Proceeding with pipeline..."
 fi
 
-# Step 1.2: Perform DEA
-log_info "Performing differential expression analysis (T-Test, FDR < 0.05, |LFC| > 1)..."
+PYTHON="python3"
+
+# Create necessary directories
+mkdir -p "$PROCESSED_DIR/networks" "$PROCESSED_DIR/weighted" "$RESULTS_DIR/validation"
+
+# Check expression data
+if [ ! -f "$NORMAL_EXPR" ] || [ ! -f "$TUMOR_EXPR" ]; then
+    log_error "Expression files not found in $RAW_DIR/expression/"
+fi
+
+# ============================================================================
+# Phase 1: Differential Expression Analysis (For Downstream Metadata)
+# ============================================================================
+log_info "=== Phase 1: Differential Expression Analysis (DEA) ==="
+# We run this just to get the Log2FC annotations for the web-viewer and plots.
+# We DO NOT use this to filter the network anymore.
+
 DEGS_FILE="$PROCESSED_DIR/dea_filtered_genes.txt"
 DEA_RESULTS="$RESULTS_DIR/dea_results_table.txt"
 
@@ -166,249 +98,84 @@ $PYTHON src/python/dea_filter.py \
     --p-val 0.05 \
     --lfc 1.0
 
-log_info "=== Phase 2: Information Gain (IG) Filtering ==="
-
-# Filter the DEGs via Information Gain (Mutual Information)
-IG_CANDIDATES="$PROCESSED_DIR/ig_candidates.txt"
-
-log_info "Filtering DEGs through Information Gain threshold..."
-$PYTHON src/python/pre_filter.py \
-    --normal "$NORMAL_EXPR" \
-    --tumor "$TUMOR_EXPR" \
-    --output "$IG_CANDIDATES"
-
-# Since pre_filter.py takes the raw expression matrix, it calculates IG on all common genes.
-# We must take the intersection of DEGs and IG_CANDIDATES to match the paper exactly.
-FINAL_CANDIDATES="$PROCESSED_DIR/final_candidates.txt"
-comm -12 <(sort "$DEGS_FILE") <(sort "$IG_CANDIDATES") > "$FINAL_CANDIDATES"
-
-log_info "Final filtered candidate pool: $(wc -l < "$FINAL_CANDIDATES") genes"
-
 # ============================================================================
-# Phase 3: Data Engineering - Network Construction (FILTERED)
+# Phase 2: Network Scaffold Construction (Unweighted)
 # ============================================================================
+log_info "=== Phase 2: Network Scaffold Construction ==="
 
-log_info "=== Phase 3: Network Construction (Sub-Network) ==="
-
-# Step 3.1: Parse KEGG
-log_info "Parsing KEGG pathways..."
 KEGG_OUTPUT="$PROCESSED_DIR/networks/kegg_interactions.txt"
-
-$PYTHON src/python/parse_kegg.py \
-    --kegg-dir "$KEGG_DIR" \
-    --output "$KEGG_OUTPUT"
-
-# Step 3.2: Parse BioGRID
-log_info "Parsing BioGRID interactions..."
 BIOGRID_OUTPUT="$PROCESSED_DIR/networks/biogrid_interactions.txt"
+MERGED_NETWORK="$PROCESSED_DIR/networks/merged_network.txt"
 
-$PYTHON src/python/parse_biogrid.py \
-    --input "$BIOGRID_FILE" \
-    --output "$BIOGRID_OUTPUT" \
-    --organism 9606
+log_info "Parsing KEGG pathways..."
+$PYTHON src/python/parse_kegg.py --kegg-dir "$KEGG_DIR" --output "$KEGG_OUTPUT"
 
-# Step 3.3: Merge networks
-if [ "$GLOBAL_MODE" -eq 1 ]; then
-    log_info "Merging KEGG and BioGRID networks (GLOBAL: No candidate filter)..."
-    MERGED_NETWORK="$PROCESSED_DIR/networks/merged_network.txt"
+log_info "Parsing BioGRID interactions..."
+$PYTHON src/python/parse_biogrid.py --input "$BIOGRID_FILE" --output "$BIOGRID_OUTPUT" --organism 9606
 
-    $PYTHON src/python/merge_networks.py \
-        --kegg "$KEGG_OUTPUT" \
-        --biogrid "$BIOGRID_OUTPUT" \
-        --output "$MERGED_NETWORK"
-else
-    log_info "Merging KEGG and BioGRID networks (Filtered to candidates)..."
-    MERGED_NETWORK="$PROCESSED_DIR/networks/merged_network.txt"
-
-    $PYTHON src/python/merge_networks.py \
-        --kegg "$KEGG_OUTPUT" \
-        --biogrid "$BIOGRID_OUTPUT" \
-        --candidates "$FINAL_CANDIDATES" \
-        --output "$MERGED_NETWORK"
-fi
-
-if [ ! -f "$MERGED_NETWORK" ]; then
-    log_error "Network merging failed"
-    exit 1
-fi
+log_info "Merging KEGG and BioGRID networks..."
+$PYTHON src/python/merge_networks.py \
+    --kegg "$KEGG_OUTPUT" \
+    --biogrid "$BIOGRID_OUTPUT" \
+    --output "$MERGED_NETWORK"
 
 # ============================================================================
-# Phase 4: Network Weighting with Expression Data
+# Phase 3: Aim 1 - Multi-Scale Diffusion Descriptor & Null Models
 # ============================================================================
+log_info "=== Phase 3: Aim 1 - Multi-Scale Diffusion & Calibration ==="
+# This script loads expression, calculates correlation weights on-the-fly, 
+# computes Laplacians, runs HKS trace estimation on GPU, and applies FDR null models.
 
-log_info "=== Phase 4: Network Weighting ==="
-
-# Step 4.1: Weight network with normal expression
-log_info "Weighting network with normal expression..."
-NORMAL_WEIGHTED="$PROCESSED_DIR/weighted/network_normal.txt"
-
-$PYTHON src/python/weight_network.py \
+$PYTHON src/python/aim1_pipeline.py \
+    --norm-expr "$NORMAL_EXPR" \
+    --tum-expr "$TUMOR_EXPR" \
     --network "$MERGED_NETWORK" \
-    --expression "$NORMAL_EXPR" \
-    --output "$NORMAL_WEIGHTED" \
-    --scale 1000
-
-# Step 2.2: Weight network with tumor expression
-log_info "Weighting network with tumor expression..."
-TUMOR_WEIGHTED="$PROCESSED_DIR/weighted/network_tumor.txt"
-
-$PYTHON src/python/weight_network.py \
-    --network "$MERGED_NETWORK" \
-    --expression "$TUMOR_EXPR" \
-    --output "$TUMOR_WEIGHTED" \
-    --scale 1000
+    --n-perms 50
 
 # ============================================================================
-# Phase 5: Centrality Computation (C++ Engine)
+# Phase 4: Extended Validation & Benchmarking
 # ============================================================================
+log_info "=== Phase 4: Validation & Benchmarking ==="
 
-log_info "=== Phase 5: Computing Network Centralities ==="
-
-NORMAL_INT="${NORMAL_WEIGHTED/.txt/_int.txt}"
-TUMOR_INT="${TUMOR_WEIGHTED/.txt/_int.txt}"
-
-if [ ! -f "$CPP_BIN" ]; then
-    log_error "C++ engine not found. Please build first."
-    exit 1
-fi
-
-log_info "Running Duan 2025 algorithm on normal and tumor networks..."
-
-$CPP_BIN \
-    "$NORMAL_INT" \
-    "$TUMOR_INT" \
-    "$RESULTS_DIR"
-
-if [ $? -ne 0 ]; then
-    log_error "C++ analysis failed"
-    exit 1
-fi
-
-# ============================================================================
-# Phase 6: Differential Centrality Analysis
-# ============================================================================
-
-log_info "=== Phase 6: Differential Centrality Analysis ==="
-
-NORMAL_CENTRALITY="$RESULTS_DIR/centrality_normal.txt"
-TUMOR_CENTRALITY="$RESULTS_DIR/centrality_tumor.txt"
-
-if [ ! -f "$NORMAL_CENTRALITY" ] || [ ! -f "$TUMOR_CENTRALITY" ]; then
-    log_error "Centrality files not found"
-    exit 1
-fi
-
-log_info "Computing differential centrality..."
-DICE_GENES="$RESULTS_DIR/dice_genes.txt"
-
-if [ "$GLOBAL_MODE" -eq 1 ]; then
-    log_info "GLOBAL MODE: Disabling Phase 5 noise filter to retain hyper-hubs like EP300..."
-    $PYTHON src/python/differential_centrality.py \
-        --normal "$NORMAL_CENTRALITY" \
-        --tumor "$TUMOR_CENTRALITY" \
-        --output "$DICE_GENES" \
-        --top-n 500 \
-        --disable-noise
-else
-    $PYTHON src/python/differential_centrality.py \
-        --normal "$NORMAL_CENTRALITY" \
-        --tumor "$TUMOR_CENTRALITY" \
-        --output "$DICE_GENES" \
-        --top-n 500
-fi
-
-if [ ! -f "$DICE_GENES" ]; then
-    log_error "Differential centrality analysis failed"
-    exit 1
-fi
-
-# ============================================================================
-# Phase 7: Virtual Knockout Analysis (Optional)
-# ============================================================================
-
-log_info "=== Phase 7: Virtual Knockout Analysis ==="
-
-# Create gene list from top DiCE genes
-TOP_GENES="$RESULTS_DIR/genes_for_knockout.txt"
-tail -n +2 "$RESULTS_DIR/dice_genes_top500.txt" | cut -f1 | head -50 > "$TOP_GENES"
-
-log_info "Running virtual knockout analysis on top 50 DiCE genes..."
-
-$CPP_BIN \
-    "$NORMAL_INT" \
-    "$TUMOR_INT" \
-    "$RESULTS_DIR" \
-    "knockout" \
-    "$TOP_GENES"
-
-# ============================================================================
-# Phase 8: Extended Validation (Fitness Genes + Dual Dataset)
-# ============================================================================
-
-log_info "=== Phase 8: Extended Validation ==="
-
-# Run cancer fitness gene analysis
-if [ -f "fitness_analysis.py" ]; then
-    log_info "Running cancer fitness gene overlap analysis..."
-    $PYTHON fitness_analysis.py \
+# 1. Fitness Gene Analysis
+if [ -f "src/python/validation/fitness_analysis.py" ]; then
+    log_info "Running Cancer Fitness Gene Overlap Analysis..."
+    $PYTHON src/python/validation/fitness_analysis.py \
         --dice-genes "$RESULTS_DIR/dice_genes_top500.txt" \
-        --output-dir "$RESULTS_DIR/validation" \
-        2>&1 | while read line; do log_info "  $line"; done
-    log_info "Fitness analysis complete."
-else
-    log_info "fitness_analysis.py not found, skipping."
+        --output-dir "$RESULTS_DIR/validation"
 fi
 
-# Run dual-dataset analysis if second dataset exists
-if [ -f "dual_dataset_analysis.py" ]; then
-    ALT_RESULTS=""
-    for ALT_DIR in "$DATA_DIR/results_gse21032" "$DATA_DIR/results_alt" "$DATA_DIR/results_metastasis"; do
-        if [ -f "$ALT_DIR/dice_genes_top500.txt" ]; then
-            ALT_RESULTS="$ALT_DIR/dice_genes_top500.txt"
-            break
-        fi
-    done
-
-    if [ -n "$ALT_RESULTS" ]; then
-        log_info "Running dual-dataset cross-validation..."
-        $PYTHON dual_dataset_analysis.py \
+# 2. Dual-Dataset Validation (if alternative dataset exists)
+if [ -f "src/python/validation/dual_dataset_analysis.py" ]; then
+    if [ -f "$DATA_DIR/results_gse21032/dice_genes_top500.txt" ]; then
+        log_info "Running Dual-Dataset Cross-Validation..."
+        $PYTHON src/python/validation/dual_dataset_analysis.py \
             --dataset-a "$RESULTS_DIR/dice_genes_top500.txt" \
-            --dataset-b "$ALT_RESULTS" \
-            --output-dir "$RESULTS_DIR/validation" \
-            2>&1 | while read line; do log_info "  $line"; done
-        log_info "Dual-dataset analysis complete."
-    else
-        log_info "No second dataset found. To enable dual-dataset analysis:"
-        log_info "  Run the pipeline on GSE21032 data and place results in data/results_gse21032/"
+            --dataset-b "$DATA_DIR/results_gse21032/dice_genes_top500.txt" \
+            --output-dir "$RESULTS_DIR/validation"
     fi
 fi
 
 # ============================================================================
 # Summary
 # ============================================================================
-
 log_info "=== Pipeline Complete ==="
 echo ""
 echo "Results saved in: $RESULTS_DIR/"
-echo ""
 echo "Output files:"
-echo "  - dice_genes.txt                  Full DiCE gene list with ranks"
-echo "  - dice_genes_top500.txt           Top 500 DiCE genes"
-echo "  - centrality_normal.txt           Normal network centralities"
-echo "  - centrality_tumor.txt            Tumor network centralities"
-if [ -f "$RESULTS_DIR/knockout_analysis.txt" ]; then
-echo "  - knockout_analysis.txt           Virtual knockout vitality scores"
-fi
+echo "  - dice_genes.txt                  Full candidate list (HKS Magnitude, Scale, FDR)"
+echo "  - dice_genes_top500.txt           Top 500 significant candidates"
 echo ""
 
-# Display top 10 DiCE genes
-echo "Top 10 DiCE genes (Score 0-1 implies Rank Product):"
-echo "==================="
-
-# Python one-liner to safely print the correct columns by name
+# Display top 10 genes
+echo "Top 10 Disease Genes (Sorted by Magnitude of Structural Shift):"
+echo "================================================================"
 $PYTHON -c "
 import pandas as pd; 
-df = pd.read_csv('$RESULTS_DIR/dice_genes_top500.txt', sep='\t'); 
-print(df[['gene', 'ensemble_score']].head(10).to_string(index=False))
+try:
+    df = pd.read_csv('$RESULTS_DIR/dice_genes_top500.txt', sep='\t')
+    print(df[['gene', 'ensemble_score', 'characteristic_scale', 'q_value_fdr']].head(10).to_string(index=False))
+except Exception:
+    print('Failed to read results file.')
 "
 echo ""
