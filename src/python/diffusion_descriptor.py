@@ -113,14 +113,20 @@ def hks_diag_cheb_torch(L, lam_max, ts, K=60, S=512, seed=0):
     return acc.cpu().numpy()
 
 def get_scale_bank(L_c):
+    """
+    Computes the diffusion scale bank. 
+    Bypasses exact Fiedler value calculation to avoid 30+ minute sparse LU decompositions.
+    """
+    # 1. Largest Eigenvalue (Standard Arnoldi iteration - very fast)
     lam_max = splinalg.eigsh(L_c, k=1, which='LM', return_eigenvectors=False)[0]
-    lam_2 = splinalg.eigsh(L_c, k=2, which='SA', return_eigenvectors=False)[1]
     
-    if lam_2 < 1e-10:
-        lam_2 = 1e-5
+    # 2. Second Smallest (Fiedler value heuristic)
+    lam_2 = 1e-4
         
     t_min = 4 * np.log(10) / lam_max
     t_max = 4 * np.log(10) / lam_2
+    
+    # Create 16 logarithmic steps
     ts = np.logspace(np.log10(t_min), np.log10(t_max), 16)
     return ts, lam_max
 

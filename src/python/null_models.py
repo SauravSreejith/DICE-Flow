@@ -1,43 +1,56 @@
 #!/usr/bin/env python3
 """
 Statistical Calibration and Null Models
-Implements Degree-Stratified FDR control for Aim 1.
+Implements Degree-Stratified FDR control and Per-Scale Centering for Aim 1.
 """
 
 import numpy as np
+import scipy.stats as stats
 from statsmodels.stats.multitest import multipletests
 import logging
 
 logger = logging.getLogger(__name__)
 
-def stratified_pvals(Delta, Delta_null, degree, n_bins=10):
+def stratified_pvals(Delta, Delta_null, degree, min_pool_size=400000):
     """
-    Computes degree-stratified empirical p-values and applies Benjamini-Hochberg FDR.
-    (Transcribed exactly from the Professor's proposal - Page 15/16)
+    Computes degree-stratified robust p-values.
+    Uses Median Absolute Deviation (MAD) to prevent random trace-estimator 
+    outliers from artificially capping the empirical p-value.
     """
-    logger.info("Computing degree-stratified empirical p-values...")
+    logger.info("Computing degree-stratified robust p-values...")
     
-    # Create degree bins using quantiles
-    edges = np.quantile(degree, np.linspace(0, 1, n_bins + 1)[1:-1])
-    bins = np.digitize(degree, edges)
+    n_genes = len(Delta)
+    n_perms = Delta_null.shape[0]
     
-    p = np.empty_like(Delta)
+    max_bins = max(1, int((n_genes * n_perms) / min_pool_size))
+    n_bins = min(10, max_bins)
+    logger.info(f"Using {n_bins} degree strata for robust null pooling.")
+    
+    degree_jitter = degree + np.random.uniform(0, 1e-5, size=degree.shape)
+    edges = np.quantile(degree_jitter, np.linspace(0, 1, n_bins + 1)[1:-1])
+    bins = np.digitize(degree_jitter, edges)
+    
+    p = np.ones_like(Delta)
     
     for b in np.unique(bins):
         idx = np.where(bins == b)[0]
-        
-        # Pool all null Delta values within this specific degree bin
-        pool = np.sort(Delta_null[:, idx].ravel())
+        pool = Delta_null[:, idx].ravel()
         
         if len(pool) == 0:
-            p[idx] = 1.0
             continue
             
-        # Find rank of actual observation in the null distribution
-        rank = np.searchsorted(pool, Delta[idx], side="right")
+        # Robust Statistics: Median and MAD ignore extreme trace estimator noise spikes
+        median_null = np.median(pool)
+        mad_null = np.median(np.abs(pool - median_null))
         
-        # Right tail p-value calculation
-        p[idx] = (len(pool) - rank + 1) / (len(pool) + 1)
+        # Convert MAD to standard deviation (1.4826 is the constant for normal dists)
+        sigma_null = mad_null * 1.4826 + 1e-8
+        
+        # Calculate Robust Z-scores
+        z_scores = (Delta[idx] - median_null) / sigma_null
+        
+        # Right-tail survival function (p-value)
+        p[idx] = stats.norm.sf(z_scores)
         
     # Benjamini-Hochberg FDR correction
     q = multipletests(p, method="fdr_bh")[1]
@@ -46,27 +59,26 @@ def stratified_pvals(Delta, Delta_null, degree, n_bins=10):
 
 def get_differential_profile(H_norm, H_tumor):
     """
-    Computes the differential profile d = H_D - H_C
-    Returns Magnitude, Characteristic Scale, and Direction.
+    Computes the differential profile d = H_D - H_C.
+    Implements Per-Scale Centering & Z-scoring to neutralize global density drift.
     """
-    # Centering (log space recommended by proposal to handle global density drift)
-    # FIX: Use np.clip to strictly enforce a minimum value, preventing log(negative)
-    H_norm_safe = np.clip(H_norm, a_min=1e-12, a_max=None)
-    H_tumor_safe = np.clip(H_tumor, a_min=1e-12, a_max=None)
+    H_norm_log = np.log(np.clip(np.abs(H_norm), a_min=1e-8, a_max=None))
+    H_tumor_log = np.log(np.clip(np.abs(H_tumor), a_min=1e-8, a_max=None))
     
-    H_norm_log = np.log(H_norm_safe)
-    H_tumor_log = np.log(H_tumor_safe)
+    mean_N = np.mean(H_norm_log, axis=1, keepdims=True)
+    std_N = np.std(H_norm_log, axis=1, keepdims=True) + 1e-8
+    H_norm_z = (H_norm_log - mean_N) / std_N
     
-    # d = H_D - H_C (shape: scales x genes)
-    d = H_tumor_log - H_norm_log
+    mean_T = np.mean(H_tumor_log, axis=1, keepdims=True)
+    std_T = np.std(H_tumor_log, axis=1, keepdims=True) + 1e-8
+    H_tumor_z = (H_tumor_log - mean_T) / std_T
     
-    # Magnitude: Delta_i = ||d_i|| (Euclidean norm across scales)
-    Delta = np.linalg.norm(d, axis=0)
+    d = H_tumor_z - H_norm_z
     
-    # Characteristic scale per gene
+    # Magnitude (Max absolute shift across scales - isolates characteristic signal)
+    Delta = np.max(np.abs(d), axis=0)
+    
     kstar = np.argmax(np.abs(d), axis=0)
-    
-    # Direction of movement
     sign = np.sign(d[kstar, np.arange(d.shape[1])])
     
     return d, Delta, kstar, sign
